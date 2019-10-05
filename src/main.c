@@ -1,5 +1,7 @@
-#include <unistd.h>
 #include <math.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 /**
  * @brief: Calculates the factorial of a number.
@@ -11,7 +13,7 @@ double factorial(double x)
   if (x == 0 || x == 1)
     return 1;
 
-  for (int i = x; x > 0; x--)
+  for (int i = x; i > 0; i--)
     total *= i;
 
   return total;
@@ -23,7 +25,7 @@ double factorial(double x)
  */
 double sumatory(double x)
 {
-  double total;
+  double total = 0;
 
   for (int i = 1; i <= x; i++)
     total += pow(i, 2);
