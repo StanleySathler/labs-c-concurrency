@@ -1,4 +1,6 @@
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -8,7 +10,7 @@
  */
 double factorial(double x)
 {
-  int total = 0;
+  int total = 1;
 
   if (x == 0 || x == 1)
     return 1;
@@ -46,7 +48,8 @@ double i(double x)
  */
 double l(double x)
 {
-  return ( factorial(x) - factorial(pow(x, 2)) ) / sumatory(x);
+  // return ( factorial(x) - factorial(pow(x, 2)) ) / sumatory(x);
+  return factorial(x) / sumatory(x);
 }
 
 /**
@@ -55,11 +58,11 @@ double l(double x)
 double h(double x)
 {
   double i_res, l_res;
-  int p3p4_buffer[2];
+  int p3p4_pipe[2];
   pid_t pid;
 
   /* Creates an inter-process communication buffer. */
-  pipe(p3p4_buffer);
+  pipe(p3p4_pipe);
 
   /* Splits into process: (P3) & (P4). */
   pid = fork();
@@ -70,8 +73,11 @@ double h(double x)
     l_res = l(x);
 
     /* Closes reading and writes to the buffer. */
-    close(p3p4_buffer[0]);
-    write(p3p4_buffer[1], &l_res, sizeof(l_res));
+    close(p3p4_pipe[0]);
+    write(p3p4_pipe[1], &l_res, sizeof(l_res));
+
+    /* Closes the process (P4) immediately. */
+    exit(0);
   }
 
   /* Parent process (P3). */
@@ -83,8 +89,8 @@ double h(double x)
     wait(0);
 
     /* Closes writing and reads from the buffer. */
-    close(p3p4_buffer[1]);
-    write(p3p4_buffer[0], &l_res, sizeof(l_res));
+    close(p3p4_pipe[1]);
+    read(p3p4_pipe[0], &l_res, sizeof(l_res));
 
     return (i_res + l_res);
   }
@@ -104,49 +110,55 @@ double g(double x)
 double f(double x)
 {
   double h_res, g_res, total;
-  int p1p2_buffer[2], p1p3_buffer[2];
-  pid_t pid, pid2;
+  int p1p2_pipe[2], p1p3_pipe[2];
+  pid_t p2_pid, p3_pid;
 
   /* Creates an inter-process communication stream. */
-  pipe(p1p2_buffer);
+  pipe(p1p2_pipe);
+  pipe(p1p3_pipe);
 
   /* Split into two process: (P1) & (P2). */
-  pid = fork();
+  p2_pid = fork();
 
   /* Child process (P2). */
-  if (pid == 0)
+  if (p2_pid == 0)
   {
     g_res = g(x);
-    close(p1p2_buffer[0]);
-    write(p1p2_buffer[1], &g_res, sizeof(g_res));
+    close(p1p2_pipe[0]);
+    write(p1p2_pipe[1], &g_res, sizeof(g_res));
+
+    /* Closes process (P2) immediately. */
+    exit(0);
   }
 
   /* Parent process (P1). */
   else
   {
     /* Split into two process: (P1) & (P3). */
-    pid2 = fork();
+    p3_pid = fork();
 
     /* Child process (P3). */
-    if (pid2 == 0)
+    if (p3_pid == 0)
     {
       h_res = h(x);
-      close(p1p3_buffer[0]);
-      write(p1p3_buffer[1], &h_res, sizeof(h_res));
+      close(p1p3_pipe[0]);
+      write(p1p3_pipe[1], &h_res, sizeof(h_res));
+
+      /* Closes process immediately. */
+      exit(0);
     }
 
     /* Parent process (P1). */
     else
     {
-      /* Wait twice, once for (P2) and once for (P3). */
-      wait(0);
-      wait(0);
+      waitpid(p2_pid, 0, 0);
+      waitpid(p3_pid, 0, 0);
 
-      /* Close writing and read value from buffer. */
-      close(p1p2_buffer[1]);
-      close(p1p3_buffer[1]);
-      read(p1p2_buffer[0], &g_res, sizeof(g_res));
-      read(p1p3_buffer[0], &h_res, sizeof(h_res));
+      close(p1p2_pipe[1]);
+      read(p1p2_pipe[0], &g_res, sizeof(g_res));
+
+      close(p1p3_pipe[1]);
+      read(p1p3_pipe[0], &h_res, sizeof(h_res));
 
       return (g_res + h_res);
     }
@@ -159,6 +171,8 @@ double f(double x)
 int
 main(void)
 {
-  f(5);
+  double result = f(5);
+  printf("main pid: %d | result: %f \n", getpid(), result);
+
   return(0);
 }
